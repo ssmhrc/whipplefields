@@ -192,11 +192,11 @@ def log(*args):
 	outdir = args[0]
 	f = open(outdir+'/log.txt','a')
 	if len(args) == 3:
-		line = 'WARNING: no viable sources at position: \
-		{}, {}\n'.format(*args[1:])
+		line = 'WARNING: no viable sources at position: '+\
+			'{}, {}\n'.format(*args[1:])
 	elif len(args) == 5:
-		line = 'at position ({}, {}): found {} out of {} \
-		viable sources\n'.format(*args[1:])
+		line = 'at position ({}, {}): found {} out of {} '+\
+			'viable sources\n'.format(*args[1:])
 	f.write(line)
 
 def cull_dataset(outdir, field_ra, field_dec, table):
