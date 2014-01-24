@@ -243,7 +243,7 @@ def cull_dataset(outdir, field_ra, field_dec, table):
 		if len(idx) < 1:
 			continue
 
-		ds = great_circle_distance(ra_i,dec_i,ra[idx],dec[idx])[0]
+		ds = great_circle_distance(ra[i],dec[i],ra[idx],dec[idx])[0]
 		Vmag_i = Vmag[i]
 		Vmag_neighbors = Vmag[idx]
 
