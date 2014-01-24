@@ -1,3 +1,4 @@
+import os
 import sys
 import numpy as np
 import pandas as pd
@@ -7,13 +8,14 @@ from astropy.io.votable import parse, writeto
 from scipy.spatial import cKDTree as KDT
 from itertools import product
 
-def get_url(ra,dec,radius,brightlim,faintlim):
+def get_url(ra, dec, radius, brightlim, faintlim):
 	"""
 	Returns a URL for a HTTP query of the USNO NOMAD catalog,
 	centered on <ra>, <dec> (in decimal degrees), for the given 
 	<radius>, bright magnitude limit <brighlitm> and faint 
 	magnitude limit <faintlim>. URL will return data in XML/VOTable 
-	format.
+	format. See: 
+	http://www.usno.navy.mil/USNO/astrometry/optical-IR-prod/icas/vo_nofs
 	"""
 	args = [ra, dec, radius, brightlim, faintlim]
 	ra, dec, radius, brightlim, faintlim = [str(i) for i in args]
@@ -186,7 +188,17 @@ def get_ang_size(df):
 	df = df[group1 | group2]
 	return df
 
-def cull_dataset(table):
+def log(*args):
+	outdir = args[0]
+	f = open(outdir+'/log.txt','a')
+	if len(args) == 3:
+		line = 'WARNING: no viable sources at position: {}, {}\n'.format(*args[1:])
+	elif len(args) == 5:
+		line = 'at position ({}, {}): found {} out of {} \
+			viable sources\n'.format(*args[1:])
+	f.write(line)
+
+def cull_dataset(outdir, field_ra, field_dec, table):
 	"""
 	Efficiently finds all neighbors within 0.01 degrees using
 	kdt.query_ball_point method to get points within radius d, where
@@ -214,7 +226,8 @@ def cull_dataset(table):
 
 	# ignore sources with theta >= 0.01 arcsec
 	df = df[df.theta < 0.01]
-
+	if df.shape[0] == 0:
+		return None
 	ra, dec, Vmag = [np.array(i) for i in [df.RA, df.DEC, df.V]]
 	kdt = KDT(radec_to_coords(ra, dec))
 	d = 0.00017453292497790891
@@ -240,26 +253,41 @@ def cull_dataset(table):
 				neighbor_flag[i] = 1
 
 	df = df[neighbor_flag==0]
+	log(outdir, field_ra, field_dec, arr.shape[0], df.shape[0])
 	return df
 
-vot = get_votable(78.0, 40.0, 0.564, 10.0, 15.0)
-df = cull_dataset(vot.get_first_table())
+# vot = get_votable(78.0, 40.0, 0.564, 10.0, 15.0)
+# df = cull_dataset(vot.get_first_table())
 
 def sample_sky(ra, dec):
 	"""
 	Returns a list of the counts of viable sources per square degree
 	for the input lists of RA and Dec.
 	"""
+
 	assert len(ra) == len(dec)
 	deg_sq_radius = np.sqrt(1/np.pi)
 	counts = []
+
+	# if previous runs exist, increment outdir number by one
+	outdir = 'sample_sky1'
+	previous = filter(lambda x: outdir[:-1] in x, os.listdir('.'))
+	if previous:
+		previous.sort()
+		spl = previous[-1].split(outdir[:-1])
+		outdir = outdir[:-1] + str(int(spl[1])+1)
+	os.mkdir(outdir)
+
 	for i in range(len(ra)):
 		vot = get_votable(ra[i], dec[i], deg_sq_radius, 10.0, 15.0)
-		df = cull_dataset(vot.get_first_table())
-		name = '_'.join([str(j) for j in [ra, dec]])
-		vot_path = name+'_VOTable.xml'
+		df = cull_dataset(outdir, ra[i], dec[i], vot.get_first_table())
+		if df is None:
+			log(outdir, ra[i], dec[i])
+			continue
+		name = str(ra[i])+'_'+str(dec[i])
+		vot_path = outdir+'/'+name+'_VOTable.xml'
 		writeto(vot,vot_path)
-		csv_path = name+'_culled.csv'
+		csv_path = outdir+'/'+name+'_culled.csv'
 		df.to_csv(csv_path, index=False)
 		counts.append(df.shape[0])
 	return counts
