@@ -468,3 +468,19 @@ plt.show()
 # plt.show()
 # # doesn't work 
 # # runs slow because there are nested loops - needs vectorization
+
+
+# try a narrow band around the plane of the ecliptic
+# +/- 5 or 10 degrees from beta = 0 with a denser coordinate grid spacing
+# start with coordinate grid in lambda, beta
+lam = np.arange(0, 360, 2)
+beta = np.arange(-10, 10, 1)
+pairs = list(product(lam, beta))
+# now convert from ecliptic to equatorial
+ra, dec = [], []
+for l, b in pairs:
+	eq = Equatorial(Ecliptic(l, b))
+	ra.append(eq.ra * rad2deg)
+	dec.append(eq.dec * rad2deg)
+counts = sample_sky(ra, dec)
+

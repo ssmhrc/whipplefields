@@ -192,10 +192,11 @@ def log(*args):
 	outdir = args[0]
 	f = open(outdir+'/log.txt','a')
 	if len(args) == 3:
-		line = 'WARNING: no viable sources at position: {}, {}\n'.format(*args[1:])
+		line = 'WARNING: no viable sources at position: \
+		{}, {}\n'.format(*args[1:])
 	elif len(args) == 5:
 		line = 'at position ({}, {}): found {} out of {} \
-			viable sources\n'.format(*args[1:])
+		viable sources\n'.format(*args[1:])
 	f.write(line)
 
 def cull_dataset(outdir, field_ra, field_dec, table):
@@ -253,7 +254,7 @@ def cull_dataset(outdir, field_ra, field_dec, table):
 				neighbor_flag[i] = 1
 
 	df = df[neighbor_flag==0]
-	log(outdir, field_ra, field_dec, arr.shape[0], df.shape[0])
+	log(outdir, field_ra, field_dec, df.shape[0], arr.shape[0])
 	return df
 
 # vot = get_votable(78.0, 40.0, 0.564, 10.0, 15.0)
