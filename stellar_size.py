@@ -283,7 +283,8 @@ def sample_sky(ra, dec):
 		try:
 			vot = get_votable(ra[i], dec[i], deg_sq_radius, 10.0, 15.0)
 		except:
-			log(outdir, ra, dec, 'IOError on call to get_votable')
+			log(outdir, ra[i], dec[i], 'error on call to get_votable')
+			continue
 		df = cull_dataset(outdir, ra[i], dec[i], vot.get_first_table())
 		if df is None:
 			log(outdir, ra[i], dec[i], 'cull_dataset returned None')
