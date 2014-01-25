@@ -191,9 +191,9 @@ def get_ang_size(df):
 def log(*args):
 	outdir = args[0]
 	f = open(outdir+'/log.txt','a')
-	if len(args) == 3:
+	if len(args) == 4:
 		line = 'WARNING: no viable sources at position: '+\
-			'{}, {}\n'.format(*args[1:])
+			'{}, {}\n\t{}'.format(*args[1:])
 	elif len(args) == 5:
 		line = 'at position ({}, {}): found {} out of {} '+\
 			'viable sources\n'.format(*args[1:])
@@ -280,10 +280,13 @@ def sample_sky(ra, dec):
 	os.mkdir(outdir)
 
 	for i in range(len(ra)):
-		vot = get_votable(ra[i], dec[i], deg_sq_radius, 10.0, 15.0)
+		try:
+			vot = get_votable(outdir, ra[i], dec[i], deg_sq_radius, 10.0, 15.0)
+		except IOError:
+			log(outdir, ra, dec, 'IOError on call to get_votable')
 		df = cull_dataset(outdir, ra[i], dec[i], vot.get_first_table())
 		if df is None:
-			log(outdir, ra[i], dec[i])
+			log(outdir, ra[i], dec[i], 'cull_dataset returned None')
 			continue
 		name = str(ra[i])+'_'+str(dec[i])
 		vot_path = outdir+'/'+name+'_VOTable.xml'
