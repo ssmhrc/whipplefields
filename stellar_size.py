@@ -196,8 +196,8 @@ def log(*args):
 			'{}, {}\n\t{}'.format(*args[1:])
 	elif len(args) == 5:
 		line = 'at position ({}, {}): found {} out of {} '.format(*args[1:])+\
-			'viable sources\n'
-	f.write(line)
+			'viable sources'
+	f.write(line+'\n')
 
 def cull_dataset(outdir, field_ra, field_dec, table):
 	"""
