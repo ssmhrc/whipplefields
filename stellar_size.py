@@ -281,7 +281,7 @@ def sample_sky(ra, dec):
 
 	for i in range(len(ra)):
 		try:
-			vot = get_votable(outdir, ra[i], dec[i], deg_sq_radius, 10.0, 15.0)
+			vot = get_votable(ra[i], dec[i], deg_sq_radius, 10.0, 15.0)
 		except IOError:
 			log(outdir, ra, dec, 'IOError on call to get_votable')
 		df = cull_dataset(outdir, ra[i], dec[i], vot.get_first_table())
