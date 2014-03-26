@@ -8,7 +8,9 @@ from astropy.io.votable import parse, writeto
 from scipy.spatial import cKDTree as KDT
 from itertools import product
 
+
 def get_url(ra, dec, radius, brightlim, faintlim):
+
 	"""
 	Returns a URL for a HTTP query of the USNO NOMAD catalog,
 	centered on <ra>, <dec> (in decimal degrees), for the given 
@@ -17,6 +19,7 @@ def get_url(ra, dec, radius, brightlim, faintlim):
 	format. See: 
 	http://www.usno.navy.mil/USNO/astrometry/optical-IR-prod/icas/vo_nofs
 	"""
+
 	args = [ra, dec, radius, brightlim, faintlim]
 	ra, dec, radius, brightlim, faintlim = [str(i) for i in args]
 	url='http://www.nofs.navy.mil/cgi-bin/vo_cone.cgi?CAT=NOMAD'+\
@@ -25,7 +28,9 @@ def get_url(ra, dec, radius, brightlim, faintlim):
 	'&cftype=XML/VO&slf=ddd.dd/dd.ddd&skey=RA'
 	return url
 
+
 def get_votable(ra, dec, radius, brightlim, faintlim):
+
 	"""
 	Returns an astropy Table object containing the result of a
 	query of the USNO NOMAD catalog, centered on <ra>, <dec> 
@@ -33,13 +38,16 @@ def get_votable(ra, dec, radius, brightlim, faintlim):
 	bright magnitude limit <brightlim>, and faint magnitude limit
 	<faintlim>.
 	"""
+
 	url = get_url(ra, dec, radius, brightlim, faintlim)
 	xmlfile = urllib.urlretrieve(url)
 	xmlpath = xmlfile[0]
 	votable = parse(xmlpath)
 	return votable
 
+
 def get_ang_size_van_belle(table):
+
 	"""
 	Computes and returns a pandas DataFrame object containing 
 	B and K band magnitudes for all sources in table with valid
@@ -47,6 +55,7 @@ def get_ang_size_van_belle(table):
 	using the relations from the 1999 Van Belle paper:
 	http://adsabs.harvard.edu/abs/1999PASP..111.1515V
 	"""
+
 	good = (table.array['B'] != 30.0) & (table.array['K'] != 30.0)
 	b = table.array['B'][good]
 	k = table.array['K'][good]
@@ -63,7 +72,9 @@ def get_ang_size_van_belle(table):
 		columns=['B','K','theta','group'])
 	return df
 
+
 def get_ang_size_wang(table):
+
 	"""
 	Computes and returns a pandas DataFrame object containing 
 	V and K band magnitudes for all sources in table with valid
@@ -71,6 +82,7 @@ def get_ang_size_wang(table):
 	using the relations from the 2010 Wang et al. paper:
 	http://adsabs.harvard.edu/abs/2010AJ....139.2003W
 	"""
+
 	good = (table.array['V'] != 30.0) & (table.array['K'] != 30.0)
 	v = table.array['V'][good]
 	k = table.array['K'][good]
@@ -84,12 +96,15 @@ def get_ang_size_wang(table):
 		columns=['V','K','theta','group'])
 	return df
 
+
 def plot_groupt_hist(df, theta_max):
+
 	"""
 	Plots a histogram of the angular sizes in the DataFrame objects
 	returned by the get_size_* functions, with different colors
 	for each group and a maximum angular size of <theta_max>
 	"""
+
 	for group in set(df.group):
 		idx = (df.group == group) & (df.theta < theta_max)
 		binwidth = theta_max/20.
@@ -100,25 +115,13 @@ def plot_groupt_hist(df, theta_max):
 	plt.xlabel('angular size [arcsec]')
 	plt.show()
 
-# # get data for 'murray1' field and calculate angular sizes using the
-# # relations from the Van Belle 1999 paper
-# # votable = get_votable(78.0, 40.0, 1.41, 10.0, 15.0)
-# vot = get_votable(78.0, 40.0, 0.565, 10.0, 15.0)
-# table = votable.get_first_table()
-# theta_vb = get_ang_size_van_belle(table)
-# plot_groupt_hist(theta_vb,0.3)
-# plot_groupt_hist(theta_vb,0.1)
 
-# # now calculate angular size using the relations from Wang et al. 2010 paper
-# theta_wang = get_ang_size_wang(table)
-# plot_groupt_hist(theta_wang,0.3)
-# plot_groupt_hist(theta_wang,0.1)
-
-# now add more functions to handle checking for too-close neighbors
 def spherical_to_cartesian(ra, dec):
+
 	"""
 	Inputs in degrees.  Outputs x,y,z
 	"""
+
 	rar = np.radians(ra)
 	decr = np.radians(dec)
 	x = np.cos(rar) * np.cos(decr)
@@ -126,13 +129,16 @@ def spherical_to_cartesian(ra, dec):
 	z = np.sin(decr)
 	return x, y, z
 
+
 def radec_to_coords(ra, dec):
+
 	"""
 	Helper function for constructing/querying k-d trees with coordinates
 	in spherical geometry.
 	Converts the input arrays from spherical coordinates to cartesion
 	and populates a 3-dimensional array with the result.
 	"""
+
 	x, y, z = spherical_to_cartesian(ra, dec)
 	coords = np.empty((x.size, 3))
 	coords[:, 0] = x
@@ -140,7 +146,9 @@ def radec_to_coords(ra, dec):
 	coords[:, 2] = z
 	return coords
 
+
 def great_circle_distance(ra1, dec1, ra2, dec2):
+
 	"""
 	Returns great circle distance.  Inputs in degrees.
 
@@ -165,13 +173,16 @@ def great_circle_distance(ra1, dec1, ra2, dec2):
 		np.cos(phif) * np.cos(dlamb)
 	return np.degrees(np.arctan2(numer, denom))
 
+
 def get_ang_size(df):
+
 	"""
 	Expects a DataFrame object containing V and K band magnitudes
 	and calculates the resulting angular size in arcsec
 	using the relations from the 2010 Wang et al. paper:
 	http://adsabs.harvard.edu/abs/2010AJ....139.2003W
 	"""
+
 	group1 = df.V - df.K <= 1.85	# main sequence
 	group2 = 2.0 < df.V - df.K		# giants
 	theta1 = 10**(0.453 + 0.246 * (df.V - df.K)[group1] - 0.2 * df.V[group1])
@@ -188,6 +199,7 @@ def get_ang_size(df):
 	df = df[group1 | group2]
 	return df
 
+
 def log(*args):
 	outdir = args[0]
 	f = open(outdir+'/log.txt','a')
@@ -195,11 +207,13 @@ def log(*args):
 		line = 'WARNING: no viable sources at position: '+\
 			'{}, {}\n\t{}'.format(*args[1:])
 	elif len(args) == 5:
-		line = 'at position ({}, {}): found {} out of {} '.format(*args[1:])+\
-			'viable sources'
+		line = 'position ({}, {}): {} out of {} '.format(*args[1:])+\
+			'are viable sources'
 	f.write(line+'\n')
 
+
 def cull_dataset(outdir, field_ra, field_dec, table):
+
 	"""
 	Efficiently finds all neighbors within 0.01 degrees using
 	kdt.query_ball_point method to get points within radius d, where
@@ -232,7 +246,7 @@ def cull_dataset(outdir, field_ra, field_dec, table):
 	ra, dec, Vmag = [np.array(i) for i in [df.RA, df.DEC, df.V]]
 	kdt = KDT(radec_to_coords(ra, dec))
 	d = 0.00017453292497790891
-	neighbor_flag = np.zeros(df.shape[0])
+	no_neighbors = np.ones(df.shape[0])
 
 	for i in range(df.shape[0]):
 
@@ -251,16 +265,15 @@ def cull_dataset(outdir, field_ra, field_dec, table):
 		# flag sources that have bright nearby neighbors as bad
 		for Vmag_j in Vmag_neighbors:
 			if Vmag_j - Vmag_i < 2:
-				neighbor_flag[i] = 1
+				no_neighbors[i] = 0
 
-	df = df[neighbor_flag==0]
+	df = df[no_neighbors.astype('bool')]
 	log(outdir, field_ra, field_dec, df.shape[0], arr.shape[0])
 	return df
 
-# vot = get_votable(78.0, 40.0, 0.564, 10.0, 15.0)
-# df = cull_dataset(vot.get_first_table())
 
 def sample_sky(ra, dec):
+
 	"""
 	Returns a list of the counts of viable sources per square degree
 	for the input lists of RA and Dec.

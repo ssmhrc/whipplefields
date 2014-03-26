@@ -484,3 +484,278 @@ for l, b in pairs:
 	dec.append(eq.dec * rad2deg)
 counts = sample_sky(ra, dec)
 
+
+
+# the previous run 'sample_sky2' was produced with a bug in cull_dataset.
+# instead of correctly comparing the distance to the nearest neighbor of
+# a source, it was comparing the neighbors to the wrong RA/Dec.
+# recompute the counts from the VOTable xml files using the new corrected
+# cull_dataset code
+from stellar_size import cull_dataset
+from astropy.io.votable import parse
+vot_dir = 'sample_sky2'
+outdir = vot_dir+'_fixed'
+# os.mkdir(outdir)
+vot_files = filter(lambda x: '.xml' in x, os.listdir(vot_dir))
+# vot_paths = ['/'.join([vot_dir,i]) for i in vot_files]
+ra, dec, counts = [], [], []
+for v in vot_files:
+	vot = parse(vot_dir+'/'+v)
+	ra_i, dec_i = v.split('_')[:2]
+	df = cull_dataset(outdir, ra_i, dec_i, vot.get_first_table())
+	counts.append(df.shape[0])
+	ra.append(float(ra_i))
+	dec.append(float(dec_i))
+	df.to_csv(outdir+'/'+v.replace('.xml','.csv'), index=False)
+
+plt.figure(figsize=(9,5.5))
+plt.hexbin(ra,dec,counts,gridsize=30)
+plt.colorbar()
+plt.xlabel('RA')
+plt.ylabel('Dec')
+plt.title('Viable sources: counts per square degree')
+plt.savefig(outdir+'_hexbin.pdf')
+plt.show()
+
+deg2rad = np.pi/180.
+rad2deg = 180./np.pi
+from ephem import Equatorial, Ecliptic
+lam, beta = [], []
+for i, j in zip(ra, dec):
+	eq = Equatorial(i * deg2rad, j * deg2rad)
+	ec = Ecliptic(eq)
+	lam.append(ec.lon * rad2deg)
+	beta.append(ec.lat * rad2deg)
+
+plt.figure(figsize=(9,5.5))
+plt.hexbin(lam, beta, counts, gridsize=20)
+plt.colorbar()
+plt.xlabel(r'$\lambda$',fontsize=18)
+plt.ylabel(r'$\beta$',fontsize=18)
+plt.title('Viable sources: counts per square degree')
+plt.savefig(outdir+'_hexbin_ecliptic.pdf')
+plt.show()
+
+# compare counts against previous (incorrect) results
+subdir = 'sample_sky2'
+ra_old, dec_old, counts_old = [np.array(i) for i in get_prev_run(subdir)]
+df_old = pd.DataFrame(dict(ra=ra_old, dec=dec_old, counts=counts_old))
+df_old_sorted = df_old.sort(['ra','dec'])
+counts_old_sorted = np.array(df_old_sorted.counts.tolist())
+
+df_new = pd.DataFrame(dict(ra=ra, dec=dec, counts=counts))
+df_new_sorted = df_new.sort(['ra','dec'])
+counts_new_sorted = np.array(df_new_sorted.counts.tolist())
+
+counts_new_sorted.shape
+# Out[1645]: 2591
+counts_old_sorted.shape
+# Out[1647]: (2591,)
+(counts_new_sorted == counts_old_sorted).sum()/2591.
+# Out[1646]: 0.99807024314936321
+
+# so the fix to cull_dataset didn't change much at all -- about 0.2%
+
+
+# got the new data back for the ecliptic plane
+# -----------------------------------------------------
+subdir = 'sample_sky_ecliptic_plane'
+
+def get_prev_run(subdir):
+	ra, dec, counts = [], [], []
+	for filename in os.listdir(subdir):
+		if '.csv' in filename:
+			df = pd.read_csv(subdir+'/'+filename)
+			counts.append(df.shape[0])
+			ra.append(float(filename.split('_')[0]))
+			dec.append(float(filename.split('_')[1]))
+	return ra, dec, counts
+
+ra, dec, counts = map(np.array,get_prev_run(subdir))
+
+lam, beta = [], []
+for i, j in zip(ra, dec):
+	eq = Equatorial(i * deg2rad, j * deg2rad)
+	ec = Ecliptic(eq)
+	lam.append(ec.lon * rad2deg)
+	beta.append(ec.lat * rad2deg)
+
+# make a hexbin plot
+plt.figure(figsize=(9,5.5))
+plt.hexbin(ra,dec,counts,gridsize=30)
+plt.hexbin(lam,beta,counts,gridsize=30)
+plt.colorbar()
+plt.xlabel('RA')
+plt.ylabel('Dec')
+plt.title('Viable sources: counts per square degree')
+# plt.savefig('sample_sky2_hexbin.pdf')
+plt.show()
+
+# apparently the conversions using pyephem didn't work
+# try using astropysics instead
+from astropysics.coords import EclipticCoordinatesEquinox as Ecliptic
+from astropysics.coords import EquatorialCoordinatesEquinox as Equatorial
+
+lam = np.arange(0, 360, 2)
+beta = np.arange(-10, 10, 1)
+pairs = list(product(lam, beta))
+# now convert from ecliptic to equatorial
+ra, dec = [], []
+for l, b in pairs:
+	eq = Ecliptic(l, b).convert(Equatorial)
+	ra.append(eq.ra.d)
+	dec.append(eq.dec.d)
+
+print pairs[0]
+# (0, -10)
+print Equatorial(ra[0],dec[0]).convert(Ecliptic)
+# EclipticCoordinatesEquinox: lamb=0.000000,beta=-10.000000
+counts = sample_sky(ra, dec)
+
+# something is wrong with astropysics on ace7, cannot import
+
+# found this implementation online at:
+# http://www.astro.ucla.edu/~ianc/python/_modules/astrolib.html
+def euler(ai, bi, select=1, fk4=False):
+	"""
+	NAME:
+	    EULER
+	PURPOSE:
+	    Transform between Galactic, celestial, and ecliptic coordinates.
+	EXPLANATION:
+	    Use the procedure ASTRO to use this routine interactively
+
+	CALLING SEQUENCE:
+	     AO, BO = EULER(AI, BI, [SELECT=1, FK4=False])
+
+	INPUTS:
+	      AI - Input Longitude in DEGREES, scalar or vector.  If only two
+	              parameters are supplied, then  AI and BI will be modified to
+	              contain the output longitude and latitude.
+	      BI - Input Latitude in DEGREES
+
+	OPTIONAL INPUT:
+	      SELECT - Integer (1-6) specifying type of coordinate transformation.
+
+	     SELECT   From          To        |   SELECT      From            To
+	      1     RA-Dec (2000)  Galactic   |     4       Ecliptic      RA-Dec
+	      2     Galactic       RA-DEC     |     5       Ecliptic      Galactic
+	      3     RA-Dec         Ecliptic   |     6       Galactic      Ecliptic
+
+	     If not supplied as a parameter or keyword, then EULER will prompt for
+	     the value of SELECT
+	     Celestial coordinates (RA, Dec) should be given in equinox J2000
+	     unless the /FK4 keyword is set.
+	OUTPUTS:
+	      AO - Output Longitude in DEGREES
+	      BO - Output Latitude in DEGREES
+
+	INPUT KEYWORD:
+	      /FK4 - If this keyword is set and non-zero, then input and output
+	            celestial and ecliptic coordinates should be given in equinox
+	            B1950.
+	      /SELECT  - The coordinate conversion integer (1-6) may alternatively be
+	             specified as a keyword
+	NOTES:
+	      EULER was changed in December 1998 to use J2000 coordinates as the
+	      default, ** and may be incompatible with earlier versions***.
+	REVISION HISTORY:
+	      Written W. Landsman,  February 1987
+	      Adapted from Fortran by Daryl Yentis NRL
+	      Converted to IDL V5.0   W. Landsman   September 1997
+	      Made J2000 the default, added /FK4 keyword  W. Landsman December 1998
+	      Add option to specify SELECT as a keyword W. Landsman March 2003
+	"""
+	import numpy
+
+	twopi = 2.0e0 * numpy.pi
+	fourpi = 4.0e0 * numpy.pi
+
+	#   J2000 coordinate conversions are based on the following constants
+	#   (see the Hipparcos explanatory supplement).
+	#  eps = 23.4392911111d              Obliquity of the ecliptic
+	#  alphaG = 192.85948d               Right Ascension of Galactic North Pole
+	#  deltaG = 27.12825d                Declination of Galactic North Pole
+	#  lomega = 32.93192d                Galactic longitude of celestial equator
+	#  alphaE = 180.02322d              Ecliptic longitude of Galactic North Pole
+	#  deltaE = 29.811438523d            Ecliptic latitude of Galactic North Pole
+	#  Eomega  = 6.3839743d              Galactic longitude of ecliptic equator
+
+	if fk4:   
+		equinox = '(B1950)'
+		psi = numpy.array ([0.57595865315e0, 4.9261918136e0, 0.00000000000e0, 0.0000000000e0, 0.11129056012e0, 4.7005372834e0])
+		stheta = numpy.array ([0.88781538514e0, -0.88781538514e0, 0.39788119938e0, -0.39788119938e0, 0.86766174755e0, -0.86766174755e0])
+		ctheta = numpy.array([0.46019978478e0, 0.46019978478e0, 0.91743694670e0, 0.91743694670e0, 0.49715499774e0, 0.49715499774e0])
+		phi = numpy.array([4.9261918136e0, 0.57595865315e0, 0.0000000000e0, 0.00000000000e0, 4.7005372834e0, 0.11129056012e0])
+	else:   
+		equinox = '(J2000)'
+		psi = numpy.array([0.57477043300e0, 4.9368292465e0, 0.00000000000e0, 0.0000000000e0, 0.11142137093e0, 4.71279419371e0])
+		stheta = numpy.array([0.88998808748e0, -0.88998808748e0, 0.39777715593e0, -0.39777715593e0, 0.86766622025e0, -0.86766622025e0])
+		ctheta = numpy.array([0.45598377618e0, 0.45598377618e0, 0.91748206207e0, 0.91748206207e0, 0.49714719172e0, 0.49714719172e0])
+		phi = numpy.array([4.9368292465e0, 0.57477043300e0, 0.0000000000e0, 0.00000000000e0, 4.71279419371e0, 0.11142137093e0])
+	  
+	i = select - 1
+	a = numpy.deg2rad(ai) - phi[i]
+	b = numpy.deg2rad(bi)
+	sb = numpy.sin(b)
+	cb = numpy.cos(b)
+	cbsa = cb * numpy.sin(a)
+	b = -stheta[i] * cbsa + ctheta[i] * sb
+	bo = numpy.rad2deg(numpy.arcsin(numpy.minimum(b, 1.0)))
+	del b
+	a = numpy.arctan2(ctheta[i] * cbsa + stheta[i] * sb, cb * numpy.cos(a))
+	del cb, cbsa, sb
+	ao = numpy.rad2deg(((a + psi[i] + fourpi) % twopi) )
+
+	return (ao, bo)
+
+
+# finished running sample_sky on the ecliptic plane
+subdir = 'ecliptic_plane'
+
+def get_prev_run(subdir):
+	ra, dec, counts = [], [], []
+	for filename in os.listdir(subdir):
+		if '.csv' in filename:
+			df = pd.read_csv(subdir+'/'+filename)
+			counts.append(df.shape[0])
+			ra.append(float(filename.split('_')[0]))
+			dec.append(float(filename.split('_')[1]))
+	return ra, dec, counts
+
+ra, dec, counts = map(np.array,get_prev_run(subdir))
+
+# use astropysics to convert coords:
+from astropysics.coords import EclipticCoordinatesEquinox as Ecliptic
+from astropysics.coords import EquatorialCoordinatesEquinox as Equatorial
+lam, beta = [], []
+for i, j in zip(ra, dec):
+	ec = Equatorial(i, j).convert(Ecliptic)
+	lam.append(ec.lamb.d)
+	beta.append(ec.beta.d)
+
+# or can use euler:
+# lam, beta = [], []
+# for i, j in zip(ra, dec):
+# 	l, b = euler(i, j, select=3)
+# 	lam.append(l)
+# 	beta.append(b)
+
+# make hexbin plots
+plt.figure(figsize=(9,5.5))
+plt.hexbin(lam,beta,counts,gridsize=20)
+plt.colorbar()
+plt.xlabel(r'$\lambda$',fontsize=18)
+plt.ylabel(r'$\beta$',fontsize=18)
+plt.title('Viable sources: counts per square degree')
+# plt.savefig('ecliptic_plane_hexbin_ecliptic.pdf')
+plt.show()
+
+plt.figure(figsize=(9,5.5))
+plt.hexbin(ra,dec,counts,gridsize=20)
+plt.colorbar()
+plt.xlabel('RA')
+plt.ylabel('Dec')
+plt.title('Viable sources: counts per square degree')
+# plt.savefig('ecliptic_plane_hexbin_equatorial.pdf')
+plt.show()
